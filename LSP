@@ -1,0 +1,109 @@
+import numpy as np
+import math
+
+###################################################################
+#Examples
+#A = np.matrix([[1, 4, 7, 5], [2, 5, 8, 10], [3, 6, 9, 1], [5, 7, 9, 3]], dtype=float)
+A = np.matrix([[1, 0, 1, 1], [1, 5, 0, 9], [0, 9, 9, 6], [5, 10, 1, 0]], dtype=float)
+#A = np.matrix([[1, 1], [-1, 1], [1, 2],[3, 6], [7, 7]], dtype=float)
+#A = np.matrix([[1, 0], [1, 5], [0, 9], [5, 10]], dtype=float)
+#A = np.matrix([[0, 1], [5, 1], [9, 0], [10, 5]], dtype=np.float64)
+#A = np.matrix([[1, 1], [1, 2], [1, 3], [1, 4] ,[1, 5]],dtype=np.float64)
+###################################################################
+
+b = np.array([1, 2, 3, 4])
+
+def norm(v):
+    s = 0
+    for i in v:
+        s = s + i**2
+    return math.sqrt(s)
+
+def max_norm_matrix(A):
+    m, n = A.shape
+    aux = np.zeros(n)
+    aux = aux.reshape(n, 1)
+    for i in range(n):
+        aux[i] = norm(A[:,i])
+    index_max = np.argmax(aux)
+    return index_max
+
+def cos_sin(a,b):
+    hipot = np.sqrt(a**2 + b**2)
+    cos = a/hipot
+    sin = b/hipot
+    return cos, sin, hipot
+
+def qr_rotators(A):
+    m, n = A.shape
+    R = A.copy()
+    intch = np.zeros(n)
+    for i in range(n):
+        intch[i] = i
+    Q = np.identity(m)
+    for i in range(0, n):
+        index_max = max_norm_matrix(R[i:,i:])
+        R[:, (i, index_max+i)] = R[:, (index_max+i, i)]
+        intch[i], intch[index_max+i] = intch[index_max+i],intch[i]
+        for j in range(i+1, m):
+            Q_temp = np.identity(m)
+            cos, sin, h = cos_sin(R[i,i], R[j,i])
+            Q_temp[i,i] = cos
+            Q_temp[i,j] = sin
+            Q_temp[j,i] = -sin
+            Q_temp[j,j] = cos
+            R = Q_temp @ R
+            Q = Q_temp @ Q
+
+    return Q, R, intch
+
+def FullRank(A):
+    m, n = A.shape
+    p = True
+    for i in range(n):
+        if A[i,i] == 0:
+            return False, i
+    return p, i
+
+def BackwardSub(A,b):
+    m, n = A.shape
+    for i in range(n-1, -1, -1):
+        for j in range(n-1, i, -1):
+            b[i] -= b[j]*A[i,j]     
+        b[i] = b[i]/A[i,i]
+    return b
+
+def LSP(A,b):
+    m, n = A.shape
+    #Decomposição QR com column pivoting
+    Q, R, intch = qr_rotators(A)
+    intch = intch.astype(int)
+    #Matriz P que grava as permutações de colunas
+    P = np.zeros((n, n))
+    for i in range(n):
+        P[intch[i],i] = 1
+    A_chapeu = A@P
+    flag, index = FullRank(np.round(R, 10))
+    if flag == True:
+        R_chapeu = R[:index+1, :index+1]
+        b = b.astype(float)
+        b = Q@b
+        op = BackwardSub(np.round(R_chapeu, 8),b[:index+1])
+        op = op.reshape((n,1))
+        op = P@op
+        print(op.T)
+    else:
+        R11 = R[:index, :index]
+        R12 = R[:index, index:]
+        #valor de x2 pode ser escolhido
+        x2 = np.zeros(n -index).reshape((n - index,1))
+        op = BackwardSub(np.round(R11,8),b[:index].reshape((index,1)) - R12@x2)
+        op = np.concatenate((op, x2), axis=0)
+        op = P@op
+        print(op.T)
+
+LSP(A,b)
+
+print('correct answer:')
+lsq = np.linalg.lstsq(A, b, rcond=None)[0]
+print(lsq)
